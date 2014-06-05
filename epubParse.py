@@ -4,7 +4,9 @@ import os #, subprocess
 
 import sys, getopt
 
+import re
 
+ 
 #currString = ''
 file_to_write = open('/Applications/djangostack-1.5.8-0/apps/django/django_projects/Project/tester.rtf', 'w')
 
@@ -16,11 +18,36 @@ class EpubHTMLParser(HTMLParser):
 	english = "TRANSLATION"
 	save_state = ignore
 
+	prev_data = ""
+
 	def isInt(self, letters):
 		try:
 			return type(int(letters)) == int
 		except ValueError:
 			return False
+
+	#the following function was written by Frederik Lundh and published on January 15, 2003
+	def unescape(self, text):
+		def fixup(m):
+			text = m.group(0)
+			if text[:2] == "&#":
+            	# character reference
+				try:
+					if text[:3] == "&#x":
+						return unichr(int(text[3:-1], 16))
+					else:
+						return unichr(int(text[2:-1]))
+				except ValueError:
+					pass
+			else:
+            	# named entity
+				try:
+					text = unichr(htmlentitydefs.name2codepoint[text[1:-1]])
+				except KeyError:
+					pass
+			return text # leave as is
+		return re.sub("&#?\w+;", fixup, text)
+	#End borrowed code
 
 	def handle_starttag(self, tag, attrs):
 		global file_to_write
@@ -32,34 +59,11 @@ class EpubHTMLParser(HTMLParser):
 				#print "Encountered a start tag:", tag, "with attributes", attrs
 
 	def handle_charref(self, name):
-		if self.save_state != self.ignore:
-			global file_to_write
-			#print "Here's a char: ", name
-			#print "This does work, right?", htmlentitydefs.codepoint2name
-			if self.isInt(name):
-				#print "We know it's an int"
-				try:
-					name = htmlentitydefs.codepoint2name[int(name)]
-					#file_to_write.write(name.encode('utf8'))
-				except KeyError:
-					print "problem child: ", name
-					if name == "39":
-						name = unicode(chr(int(name)))
-						print "new name: ", name
-
-				file_to_write.write(name.encode('utf8'))
-			else:
-				print "name", name
-				file_to_write.write(unichr(name).encode('utf8'))
-			#name = htmlentitydefs.name2codepoint[]
-		# if name.startswith('x'):
-
-		# 	c = unichr(int(name[1:], 16))
-		# 	print "we're here"
-		# else:
-		# 	c = unichr(int(name))
-		# 	print "We're here?"
-		#print "c: ", c
+		if self.isInt(name):
+			print "name: ", name
+			file_to_write.write(self.unescape("&#"+name+";").encode("utf8"))
+		else:
+			file_to_write.write(self.unescape("&"+name+";").encode("utf8"))
 
 
 	def handle_endtag(self, tag):
@@ -76,6 +80,12 @@ class EpubHTMLParser(HTMLParser):
 	def handle_data(self, data):
 		global file_to_write
 		final_punct = ['.', '!', '?']
+		#if data == '\n':
+			#print "It does see new lines!"
+			#print "save state"+self.save_state
+			#print "What was there before: ", self.prev_data
+			#file_to_write.write("**HERE'S THE NEWLINE**")
+		self.prev_data = data
 		if self.save_state == self.first_word:
 			if self.isInt(data):
 				file_to_write.write("#"+data)
@@ -101,7 +111,7 @@ class EpubHTMLParser(HTMLParser):
 		elif self.save_state == self.english:
 			if data in final_punct:
 				file_to_write.write(data+'\n')
-				self.save_state = self.hausa
+				#self.save_state = self.english
 			else:
 				file_to_write.write(data)
 		# 	if self.isInt(data):
@@ -151,10 +161,6 @@ class EpubHTMLParser(HTMLParser):
 		# 		self.save_state = first_word
 
 
-
-# def how_to_split(word):
-# 	if word
-
 #Based off the assumption that 1. the proverbs are in a numbered list format, and 2. Each entry is separated by a paragraph
 def epubParse(the_file):
 	parser = EpubHTMLParser()#encoding = 'utf-8')
@@ -174,6 +180,16 @@ def print_to_file(folder, output_file_name):
 			print "Successfully processed document: " + doc
 	except OSError:
 		print "Problems arose in the print to file function. Change your directory."
+
+def reprocess_file(folder, output_file_name):
+	with open(folder+output_file_name, 'r') as output:
+		for line in output:
+			if line[0] == "#":
+				r = 0
+				#wait until the next period, then check to see how long the next passage is. If it's ridiculously long (>3),
+				#flag it as strange-looking
+			continue
+		return
 
 
 ############# Command line initialization #############
@@ -205,10 +221,10 @@ def process(arg):
 		print "This directory doesn't work: ", arg
 
 
-if __name__ == "__main__":
-	main()
+#if __name__ == "__main__":
+#	main()
 
-#path = '/Applications/djangostack-1.5.8-0/apps/django/django_projects/Project/hausa_files/'
+path = '/Applications/djangostack-1.5.8-0/apps/django/django_projects/Project/hausa_files/'
 #filename = 'content-0009.xml'
 
-#print_to_file(path, 'concat_output.txt')
+print_to_file(path, 'concat_output.txt')
