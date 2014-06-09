@@ -13,11 +13,16 @@ file_to_write = open('/Applications/djangostack-1.5.8-0/apps/django/django_proje
 class EpubHTMLParser(HTMLParser):
 	ignore = "DON'T SAVE"
 	first_word = "FIRST WORD AFTER INITIAL TAG"
-	main_body_first = "IN THE MAIN BODY OF THE TEXT"
 	hausa = "ORIGINAL PROVERB"
-	english = "TRANSLATION"
+	translation = "TRANSLATION"
+	gen_eng = "GENERAL ENGLISH"
+	ig_first = "INITIAL FIRST WORD"
 	save_state = ignore
+	sentence_count = 0
+	curr_proverb_number = 0
+	tens_place = 0
 
+	#debugging
 	prev_data = ""
 
 	def isInt(self, letters):
@@ -52,145 +57,52 @@ class EpubHTMLParser(HTMLParser):
 	def handle_starttag(self, tag, attrs):
 		global file_to_write
    		if tag == 'p':
-   			if self.save_state ==self.english:
-   				self.save_state = self.main_body_first
-   			else:
-				self.save_state = self.first_word
-				#print "Encountered a start tag:", tag, "with attributes", attrs
+   			self.sentence_count = 0 	#Each new p signals a new type of entry, this will start the count
+   			if self.save_state == self.ignore:
+   				self.save_state = self.ig_first
+   			if self.save_state != self.hausa:
+   				self.save_state = self.first_word
+
 
 	def handle_charref(self, name):
 		if self.isInt(name):
-			print "name: ", name
 			file_to_write.write(self.unescape("&#"+name+";").encode("utf8"))
 		else:
 			file_to_write.write(self.unescape("&"+name+";").encode("utf8"))
 
 
-	def handle_endtag(self, tag):
-		#global file_to_write
-		if tag == 'p':
-			if self.save_state == self.hausa:
-				self.save_state = self.first_word
-			elif self.save_state == self.english:
-				self.save_state = self.main_body_first
-			else:
-				self.save_state = self.ignore
-			#print "Encountered an end tag :", tag
-
 	def handle_data(self, data):
 		global file_to_write
 		final_punct = ['.', '!', '?']
-		#if data == '\n':
-			#print "It does see new lines!"
-			#print "save state"+self.save_state
-			#print "What was there before: ", self.prev_data
-			#file_to_write.write("**HERE'S THE NEWLINE**")
 		self.prev_data = data
-		if self.save_state == self.first_word:
+		if data in final_punct and self.save_state != self.ignore:
+			if self.save_state == self.hausa:
+				self.save_state = self.translation
+			elif self.save_state == self.translation:
+				self.sentence_count += 1
+				if self.sentence_count >2:
+					file_to_write.write("\n***SOMETHING LOOKS FISHY***\n")
+
+		elif self.save_state == self.first_word:
 			if self.isInt(data):
-				file_to_write.write("#"+data)
+				self.save_state = self.hausa
+				data = "#"+data
+				self.curr_proverb_number+=1
+				if self.curr_proverb_number == 9:
+					self.tens_place += 10
+			else:
+				self.save_state = self.gen_eng
+
+		elif self.save_state == self.ig_first:
+			if self.isInt(data):
 				self.save_state = self.hausa
 			else:
 				self.save_state = self.ignore
 
-		elif self.save_state == self.main_body_first:
-			if self.isInt(data):
-				file_to_write.write("#"+data)
-				self.save_state = self.hausa
-			else:
-				file_to_write.write(data)
-				self.save_state = self.english
+		if self.save_state != self.ignore:
+			file_to_write.write(data)
 
-		elif self.save_state == self.hausa:
-			if data in final_punct:
-				file_to_write.write(data+'\n')
-				self.save_state = self.english
-			else:
-				file_to_write.write(data)
-
-		elif self.save_state == self.english:
-			if data in final_punct:
-				file_to_write.write(data+'\n')
-				#self.save_state = self.english
-			else:
-				file_to_write.write(data)
-		# 	if self.isInt(data):
-		# 		#print "The string is interpreted as an int: ", data
-		# 		file_to_write.write("#"+data)
-		# 		self.save_state = self.hausa
-		# 	else:
-		# 		file_to_write.write(data)
-		# 		self.save_state = hausa
-		# elif self.save_state == self.main_body_first:
-		# 	if self.isInt(data):
-		# 		file_to_write.write("#"+data)
-		# 		self.save_state = self.hausa
-		# 	else:
-		# 		file_to_write.write(data)
-		# 		self.save_state = self.english
-		# else:
-		# 	self.save_state = self.ignore
-
-		# elif self.save_state == self.hausa:
-		# 	file_to_write.write(data)
-		# 	if data in final_punct:
-		# 		file_to_write.write('\n')
-		# 		self.save_state = self.english
 		
-		# elif self.save_state == self.english:
-		# 	file_to_write.write(data)
-		# 	if data in final_punct:
-		# 		file_to_write.write('\n')
-
-		#file_to_write.write(unichr(currString).encode('utf-8'))
-
-		# if self.save_state == self.first_word:
-		# 	print "First Word: ", data
-		# 	currString += ' '+str(data)
-		# 	self.save_state = self.save
-		# elif self.save_state == self.save:
-		# 	print "Gen word: ", data
-		# 	currString += str(data)
-		# elif self.save_state == self.inside_tag:
-		# 	print "just inside the tag", data
-		# 	if type(data[0]) is int and type(data[-1]) is str:
-		# 		self.save_state = self.preceding_sentence
-		# elif self.save_state == self.preceding_sentence:
-		# 	print "Hausa sentence: ", data
-		# 	if data[-1] == '.':
-		# 		self.save_state = first_word
-
-
-#Based off the assumption that 1. the proverbs are in a numbered list format, and 2. Each entry is separated by a paragraph
-def epubParse(the_file):
-	parser = EpubHTMLParser()#encoding = 'utf-8')
-
-	with open(the_file) as epubFile:
-		c = epubFile.read(1)
-		while(c):
-			parser.feed(c)
-			c = epubFile.read(1)
-
-def print_to_file(folder, output_file_name):
-	global file_to_write
-	try:
-		file_to_write = open(folder+output_file_name, 'w')
-		for doc in os.listdir(folder):
-			epubParse(folder+doc)
-			print "Successfully processed document: " + doc
-	except OSError:
-		print "Problems arose in the print to file function. Change your directory."
-
-def reprocess_file(folder, output_file_name):
-	with open(folder+output_file_name, 'r') as output:
-		for line in output:
-			if line[0] == "#":
-				r = 0
-				#wait until the next period, then check to see how long the next passage is. If it's ridiculously long (>3),
-				#flag it as strange-looking
-			continue
-		return
-
 
 ############# Command line initialization #############
 
