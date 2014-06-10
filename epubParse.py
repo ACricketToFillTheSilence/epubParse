@@ -106,6 +106,26 @@ class EpubHTMLParser(HTMLParser):
 
 ############# Command line initialization #############
 
+def print_to_file(folder, output_file_name):
+	global file_to_write
+	try:
+		file_to_write = open(folder+output_file_name, 'w')
+		for doc in os.listdir(folder):
+			epubParse(folder+doc)
+			print "Successfully processed document: " + doc
+	except OSError:
+		print "Problems arose in the print to file function. Change your directory."
+
+def reprocess_file(folder, output_file_name):
+	with open(folder+output_file_name, 'r') as output:
+		for line in output:
+			if line[0] == "#":
+				r = 0
+				#wait until the next period, then check to see how long the next passage is. If it's ridiculously long (>3),
+				#flag it as strange-looking
+			continue
+		return
+
 def main(argv = None):
 	try:
 		opts, args = getopt.getopt(sys.argv[1:], 'h', ['help'])
